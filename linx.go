@@ -11,14 +11,16 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strconv"
+	"strings"
 
 	"golang.org/x/net/proxy"
 )
 
 type Config struct {
-	Server     string
-	Proxy      string
-	DeleteKeys map[string]string
+	Server    string
+	Proxy     string
+	UploadLog string
 }
 
 type LinxJSON struct {
@@ -66,8 +68,13 @@ func linx(config *Config, filepath string, ttl int, deleteKey string) {
 	}
 
 	req.Header.Add("Accept", "application/json")
-	//req.Header.Add("X-File-Expiry", 0)
-	req.Header.Add("X-Randomized-Barename", "yes")
+	req.Header.Add("User-Agent", "golinx")
+	req.Header.Add("Linx-Expiry", strconv.Itoa(ttl))
+	req.Header.Add("Linx-Randomize", "yes")
+
+	if deleteKey != "" {
+		req.Header.Add("Linx-Delete-Key", deleteKey)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -84,21 +91,22 @@ func linx(config *Config, filepath string, ttl int, deleteKey string) {
 		log.Fatalf("Failed to read the body: %v\n", err)
 	}
 
-	// TODO: upload progress
-
 	var data LinxJSON
 	err = json.Unmarshal(body, &data)
 
-	// TODO: store delete key
-	fmt.Printf("%s\n", data.Url)
+	if deleteKey != "" || config.UploadLog != "" {
+		fmt.Printf("%s\n", data.Url)
+	} else {
+		fmt.Printf("%-40s  delete key: %s\n", data.Url, data.Delete_Key)
+	}
 }
 
-func unlinx(config *Config, url string) bool {
-	//client := prepareProxyClient(config.proxy)
-	client := &http.Client{}
-	deleteKey, exists := config.DeleteKeys[url]
-	if !exists {
-		log.Fatalf("No delete key found for %s\n", url)
+func unlinx(config *Config, url string, deleteKey string) bool {
+	client := prepareProxyClient(config.Proxy)
+
+	if !strings.HasPrefix(url, config.Server) {
+		log.Fatalf("\"%s\" is not a valid URL for the configured server\n", url)
+		return false
 	}
 
 	req, err := http.NewRequest("DELETE", url, nil)
@@ -106,7 +114,8 @@ func unlinx(config *Config, url string) bool {
 		log.Fatalf("Failed to create request: %v\n", err)
 	}
 
-	req.Header.Add("X-Delete-Key", deleteKey)
+	req.Header.Add("User-Agent", "golinx")
+	req.Header.Add("Linx-Delete-Key", deleteKey)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -125,10 +134,16 @@ func unlinx(config *Config, url string) bool {
 
 func main() {
 	config := &Config{}
+	var deleteKey string
 	var deleteMode bool
+	var ttl int
 
+	flag.StringVar(&deleteKey, "deletekey", "",
+		"The delete key to use for uploading or deleting a file")
 	flag.BoolVar(&deleteMode, "d", false,
 		"Delete the specified files instead of uploading")
+	flag.IntVar(&ttl, "ttl", 0,
+		"Time to live; the length of time in seconds before the file expires")
 	flag.StringVar(&config.Server, "server", "http://127.0.0.1:8080/",
 		"URL to a linx server")
 	flag.StringVar(&config.Proxy, "proxy", "",
@@ -141,11 +156,11 @@ func main() {
 
 	if deleteMode {
 		for _, url := range flag.Args() {
-			unlinx(config, url)
+			unlinx(config, url, deleteKey)
 		}
 	} else {
 		for _, filepath := range flag.Args() {
-			linx(config, filepath)
+			linx(config, filepath, ttl, deleteKey)
 		}
 	}
 }
