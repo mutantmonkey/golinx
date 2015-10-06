@@ -31,6 +31,29 @@ type LinxJSON struct {
 	Size       string
 }
 
+func getDeleteKeys(config *Config) (keys map[string]string) {
+	keys = make(map[string]string)
+
+	f, err := os.Open(config.UploadLog)
+	if err != nil {
+		log.Fatalf("Could not open upload log \"%s\": %v", config.UploadLog, err)
+	}
+
+	scanner := bufio.NewScanner(bufio.NewReader(f))
+	for scanner.Scan() {
+		lineSlice := strings.SplitN(scanner.Text(), ":", 2)
+		if len(lineSlice) == 2 {
+			keys[lineSlice[0]] = lineSlice[1]
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("Scanner error: %v", err)
+	}
+
+	return
+}
+
 func prepareProxyClient(proxyUrl string) *http.Client {
 	var dialer proxy.Dialer
 
@@ -96,6 +119,18 @@ func linx(config *Config, filepath string, ttl int, deleteKey string) {
 
 	if deleteKey != "" || config.UploadLog != "" {
 		fmt.Printf("%s\n", data.Url)
+
+		f, err := os.OpenFile(config.UploadLog, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0600)
+		if err != nil {
+			log.Fatalf("Failed to open upload log \"%s\" to write delete key \"%s\": %v", config.UploadLog, data.Delete_Key, err)
+		}
+		defer f.Close()
+
+		_, err = f.WriteString(fmt.Sprintf("%s:%s\n", data.Filename, data.Delete_Key))
+		if err != nil {
+			log.Fatalf("Failed to write delete key \"%s\" to log: %v", data.Delete_Key, err)
+		}
+		f.Sync()
 	} else {
 		fmt.Printf("%-40s  delete key: %s\n", data.Url, data.Delete_Key)
 	}
@@ -148,6 +183,8 @@ func main() {
 		"URL to a linx server")
 	flag.StringVar(&config.Proxy, "proxy", "",
 		"URL of proxy used to access the server")
+	flag.StringVar(&config.UploadLog, "uploadlog", "",
+		"Path to the upload log file")
 	flag.Parse()
 
 	if lastChar := config.Server[len(config.Server)-1:]; lastChar != "/" {
@@ -155,8 +192,23 @@ func main() {
 	}
 
 	if deleteMode {
-		for _, url := range flag.Args() {
-			unlinx(config, url, deleteKey)
+		deleteKeys := getDeleteKeys(config)
+
+		for _, deleteUrl := range flag.Args() {
+			if deleteKey == "" {
+				u, err := url.Parse(deleteUrl)
+				if err != nil {
+					log.Fatalf("Failed to parse URL \"%s\": %v", deleteUrl, err)
+				}
+
+				if fileDeleteKey, exists := deleteKeys[u.Path[1:]]; exists {
+					unlinx(config, deleteUrl, fileDeleteKey)
+				} else {
+					fmt.Printf("%s: no delete key found", deleteUrl)
+				}
+			} else {
+				unlinx(config, deleteUrl, deleteKey)
+			}
 		}
 	} else {
 		for _, filepath := range flag.Args() {
