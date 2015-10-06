@@ -30,23 +30,28 @@ type LinxJSON struct {
 }
 
 func prepareProxyClient(proxyUrl string) *http.Client {
-	u, err := url.Parse(proxyUrl)
-	if err != nil {
-		log.Fatalf("Failed to parse proxy URL: %v\n", err)
-	}
+	var dialer proxy.Dialer
 
-	dialer, err := proxy.FromURL(u, proxy.Direct)
-	if err != nil {
-		log.Fatalf("Failed to obtain proxy dailer: %v\n", err)
+	dialer = proxy.Direct
+
+	if proxyUrl != "" {
+		u, err := url.Parse(proxyUrl)
+		if err != nil {
+			log.Fatalf("Failed to parse proxy URL: %v\n", err)
+		}
+
+		dialer, err = proxy.FromURL(u, dialer)
+		if err != nil {
+			log.Fatalf("Failed to obtain proxy dialer: %v\n", err)
+		}
 	}
 
 	transport := &http.Transport{Dial: dialer.Dial}
 	return &http.Client{Transport: transport}
 }
 
-func linx(config *Config, filepath string) {
-	//client := prepareProxyClient(config.proxy)
-	client := &http.Client{}
+func linx(config *Config, filepath string, ttl int, deleteKey string) {
+	client := prepareProxyClient(config.Proxy)
 
 	f, err := os.Open(filepath)
 	if err != nil {
@@ -122,12 +127,12 @@ func main() {
 	config := &Config{}
 	var deleteMode bool
 
+	flag.BoolVar(&deleteMode, "d", false,
+		"Delete the specified files instead of uploading")
 	flag.StringVar(&config.Server, "server", "http://127.0.0.1:8080/",
 		"URL to a linx server")
-	flag.StringVar(&config.Proxy, "proxy", "socks5://127.0.0.1:9050",
+	flag.StringVar(&config.Proxy, "proxy", "",
 		"URL of proxy used to access the server")
-	flag.BoolVar(&deleteMode, "d", false,
-		"Delete the specified file instead of uploading")
 	flag.Parse()
 
 	if lastChar := config.Server[len(config.Server)-1:]; lastChar != "/" {
