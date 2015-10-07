@@ -83,9 +83,15 @@ func linx(config *Config, filepath string, ttl int, deleteKey string) {
 		log.Fatalf("Failed to open file: %v\n", err)
 	}
 
-	uploadUrl := fmt.Sprintf("%supload/%s", config.Server, path.Base(filepath))
+	filename := path.Base(filepath)
+	uploadUrl := fmt.Sprintf("%supload/%s", config.Server, filename)
+	stat, err := f.Stat()
+	if err != nil {
+		log.Fatalf("Failed to stat file: %v\n", err)
+	}
+	reader := NewProgressReader(filename, bufio.NewReader(f), stat.Size())
 
-	req, err := http.NewRequest("PUT", uploadUrl, bufio.NewReader(f))
+	req, err := http.NewRequest("PUT", uploadUrl, reader)
 	if err != nil {
 		log.Fatalf("Failed to create request: %v\n", err)
 	}
