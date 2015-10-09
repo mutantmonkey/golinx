@@ -14,7 +14,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/adrg/xdg"
 	"golang.org/x/net/proxy"
+	"gopkg.in/yaml.v2"
 )
 
 type Config struct {
@@ -178,6 +180,13 @@ func main() {
 	var deleteKey string
 	var deleteMode bool
 	var ttl int
+	var configPath string
+
+	defaultConfigPath, err := xdg.ConfigFile("golinx/config.yml")
+	if err != nil {
+		fmt.Printf("Unable get XDG config file path: %v", err)
+		defaultConfigPath = ""
+	}
 
 	flag.StringVar(&deleteKey, "deletekey", "",
 		"The delete key to use for uploading or deleting a file")
@@ -185,13 +194,23 @@ func main() {
 		"Delete the specified files instead of uploading")
 	flag.IntVar(&ttl, "ttl", 0,
 		"Time to live; the length of time in seconds before the file expires")
-	flag.StringVar(&config.Server, "server", "http://127.0.0.1:8080/",
+	flag.StringVar(&configPath, "config", defaultConfigPath,
+		"The path to the config file")
+	flag.StringVar(&config.Server, "server", "",
 		"URL to a linx server")
 	flag.StringVar(&config.Proxy, "proxy", "",
 		"URL of proxy used to access the server")
 	flag.StringVar(&config.UploadLog, "uploadlog", "",
 		"Path to the upload log file")
 	flag.Parse()
+
+	if configPath != "" {
+		data, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			log.Fatal("Unable to read config file: ", err)
+		}
+		yaml.Unmarshal(data, &config)
+	}
 
 	if lastChar := config.Server[len(config.Server)-1:]; lastChar != "/" {
 		config.Server = config.Server + "/"
