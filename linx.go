@@ -38,7 +38,8 @@ func getDeleteKeys(config *Config) (keys map[string]string) {
 
 	f, err := os.Open(config.UploadLog)
 	if err != nil {
-		log.Fatalf("Could not open upload log \"%s\": %v", config.UploadLog, err)
+		log.Print("Could not open upload log: ", err)
+		return
 	}
 
 	scanner := bufio.NewScanner(bufio.NewReader(f))
@@ -50,7 +51,7 @@ func getDeleteKeys(config *Config) (keys map[string]string) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Fatalf("Scanner error: %v", err)
+		log.Fatal("Scanner error: ", err)
 	}
 
 	return
@@ -177,50 +178,72 @@ func unlinx(config *Config, url string, deleteKey string) bool {
 
 func main() {
 	config := &Config{}
-	var deleteKey string
-	var deleteMode bool
-	var ttl int
-	var configPath string
+	var flags struct {
+		deleteKey string
+		deleteMode bool
+		ttl int
+		configPath string
+		server string
+		proxy string
+		uploadLog string
+	}
 
 	defaultConfigPath, err := xdg.ConfigFile("golinx/config.yml")
 	if err != nil {
-		fmt.Printf("Unable get XDG config file path: %v", err)
+		log.Print("Unable to get XDG config file path: ", err)
 		defaultConfigPath = ""
 	}
 
-	flag.StringVar(&deleteKey, "deletekey", "",
+	flag.StringVar(&flags.deleteKey, "deletekey", "",
 		"The delete key to use for uploading or deleting a file")
-	flag.BoolVar(&deleteMode, "d", false,
+	flag.BoolVar(&flags.deleteMode, "d", false,
 		"Delete the specified files instead of uploading")
-	flag.IntVar(&ttl, "ttl", 0,
+	flag.IntVar(&flags.ttl, "ttl", 0,
 		"Time to live; the length of time in seconds before the file expires")
-	flag.StringVar(&configPath, "config", defaultConfigPath,
+	flag.StringVar(&flags.configPath, "config", defaultConfigPath,
 		"The path to the config file")
-	flag.StringVar(&config.Server, "server", "",
+	flag.StringVar(&flags.server, "server", "",
 		"URL to a linx server")
-	flag.StringVar(&config.Proxy, "proxy", "",
+	flag.StringVar(&flags.proxy, "proxy", "",
 		"URL of proxy used to access the server")
-	flag.StringVar(&config.UploadLog, "uploadlog", "",
+	flag.StringVar(&flags.uploadLog, "uploadlog", "",
 		"Path to the upload log file")
 	flag.Parse()
 
-	if configPath != "" {
-		data, err := ioutil.ReadFile(configPath)
+	if flags.configPath != "" {
+		data, err := ioutil.ReadFile(flags.configPath)
 		if err != nil {
-			log.Fatal("Unable to read config file: ", err)
+			log.Print("Unable to read config file: ", err)
+		} else {
+			yaml.Unmarshal(data, &config)
 		}
-		yaml.Unmarshal(data, &config)
+	}
+
+	if flags.server != "" {
+		config.Server = flags.server
+	}
+
+	if flags.proxy != "" {
+		config.Proxy = flags.proxy
+	}
+
+	if flags.uploadLog != "" {
+		config.UploadLog = flags.uploadLog
+	}
+
+	if config.Server == "" {
+		log.Fatal("Required option server not specified in config or as a flag")
 	}
 
 	if lastChar := config.Server[len(config.Server)-1:]; lastChar != "/" {
 		config.Server = config.Server + "/"
 	}
 
-	if deleteMode {
+	if flags.deleteMode {
 		deleteKeys := getDeleteKeys(config)
 
 		for _, deleteUrl := range flag.Args() {
-			if deleteKey == "" {
+			if flags.deleteKey == "" {
 				u, err := url.Parse(deleteUrl)
 				if err != nil {
 					log.Fatalf("Failed to parse URL \"%s\": %v", deleteUrl, err)
@@ -232,12 +255,12 @@ func main() {
 					fmt.Printf("%s: no delete key found", deleteUrl)
 				}
 			} else {
-				unlinx(config, deleteUrl, deleteKey)
+				unlinx(config, deleteUrl, flags.deleteKey)
 			}
 		}
 	} else {
 		for _, filepath := range flag.Args() {
-			linx(config, filepath, ttl, deleteKey)
+			linx(config, filepath, flags.ttl, flags.deleteKey)
 		}
 	}
 }
