@@ -179,13 +179,13 @@ func unlinx(config *Config, url string, deleteKey string) bool {
 func main() {
 	config := &Config{}
 	var flags struct {
-		deleteKey string
+		deleteKey  string
 		deleteMode bool
-		ttl int
+		ttl        int
 		configPath string
-		server string
-		proxy string
-		uploadLog string
+		server     string
+		proxy      string
+		uploadLog  string
 	}
 
 	defaultConfigPath, err := xdg.ConfigFile("golinx/config.yml")

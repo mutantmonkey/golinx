@@ -10,6 +10,7 @@ import (
 
 const termWidth = 80
 const updateInterval = time.Second / 10
+
 var clearBuf = bytes.Repeat([]byte{' '}, termWidth)
 
 func init() {
@@ -20,18 +21,18 @@ func init() {
 type ProgressReader struct {
 	output io.Writer
 	reader io.Reader
-	total int64
-	read chan int
-	label string
+	total  int64
+	read   chan int
+	label  string
 }
 
 func NewProgressReader(label string, r io.Reader, size int64) io.ReadCloser {
 	pr := &ProgressReader{
 		output: os.Stderr,
 		reader: r,
-		total: size,
-		read: make(chan int),
-		label: label,
+		total:  size,
+		read:   make(chan int),
+		label:  label,
 	}
 
 	go pr.update()
@@ -55,7 +56,7 @@ func (pr *ProgressReader) clearProgress() {
 }
 
 func (pr *ProgressReader) printProgress(n int64) {
-	percent := float64(n * 100) / float64(pr.total)
+	percent := float64(n*100) / float64(pr.total)
 	fmt.Fprintf(pr.output, "\r%-40v %7.2f%%", pr.label, percent)
 }
 
