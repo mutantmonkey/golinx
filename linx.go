@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 type Config struct {
 	Server    string
 	Proxy     string
+	AuthKey   string
 	UploadLog string
 }
 
@@ -31,6 +33,11 @@ type LinxJSON struct {
 	Delete_Key string
 	Expiry     string
 	Size       string
+}
+
+func createAuthHeader(authKey string) string {
+	const authPrefix = "Linx "
+	return authPrefix + base64.StdEncoding.EncodeToString([]byte(authKey))
 }
 
 func getDeleteKeys(config *Config) (keys map[string]string) {
@@ -108,6 +115,10 @@ func linx(config *Config, filepath string, ttl int, deleteKey string) {
 		req.Header.Add("Linx-Delete-Key", deleteKey)
 	}
 
+	if config.AuthKey != "" {
+		req.Header.Add("Authorization", createAuthHeader(config.AuthKey))
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Fatalf("Failed to issue request: %v\n", err)
@@ -160,6 +171,10 @@ func unlinx(config *Config, url string, deleteKey string) bool {
 
 	req.Header.Add("User-Agent", "golinx")
 	req.Header.Add("Linx-Delete-Key", deleteKey)
+
+	if config.AuthKey != "" {
+		req.Header.Add("Authorization", createAuthHeader(config.AuthKey))
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
