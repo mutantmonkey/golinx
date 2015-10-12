@@ -3,6 +3,19 @@
 A client for [linx-server](https://github.com/andreimarcu/linx-server) written
 in Go.
 
+## Configuration
+Golinx follows the XDG directory standard, so you should put your config in
+`~/.config/golinx/config.yml`, or simply specify the path to it with the
+`-config` flag.
+
+Here's an example config file:
+```
+server: http://example.com
+proxy: socks5://127.0.0.1:9050
+uploadlog: /home/mutantmonkey/.local/share/golinx/linx.log
+authkey: hackme
+```
+
 ## License
 Copyright (c) 2015 mutantmonkey
 
