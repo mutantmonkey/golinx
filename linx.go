@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
