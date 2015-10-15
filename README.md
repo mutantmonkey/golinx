@@ -13,7 +13,6 @@ Here's an example config file:
 server: http://example.com
 proxy: socks5://127.0.0.1:9050
 uploadlog: /home/mutantmonkey/.local/share/golinx/linx.log
-authkey: hackme
 ```
 
 ## License
