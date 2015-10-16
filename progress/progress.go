@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	labelLength = 40
-	termWidth = 80
+	labelLength    = 40
+	termWidth      = 80
 	updateInterval = time.Second / 10
 )
 
@@ -61,7 +61,11 @@ func (pr *ProgressReader) clearProgress() {
 func (pr *ProgressReader) printProgress(n int64) {
 	percent := float64(n*100) / float64(pr.total)
 	formatStr := fmt.Sprintf("\r%%-%dv %%7.2f%%%%", labelLength)
-	fmt.Fprintf(pr.output, formatStr, pr.label[:labelLength], percent)
+	if len(pr.label) > labelLength {
+		fmt.Fprintf(pr.output, formatStr, pr.label[:labelLength], percent)
+	} else {
+		fmt.Fprintf(pr.output, formatStr, pr.label, percent)
+	}
 }
 
 func (pr *ProgressReader) update() {
