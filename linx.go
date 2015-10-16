@@ -17,6 +17,7 @@ import (
 	"github.com/adrg/xdg"
 	"golang.org/x/net/proxy"
 	"gopkg.in/yaml.v2"
+	"mutantmonkey.in/code/golinx/progress"
 )
 
 type Config struct {
@@ -92,7 +93,7 @@ func linx(config *Config, filepath string, ttl int, deleteKey string) {
 	if err != nil {
 		log.Fatalf("Failed to stat file: %v\n", err)
 	}
-	reader := NewProgressReader(filename, bufio.NewReader(f), stat.Size())
+	reader := progress.NewProgressReader(filename, bufio.NewReader(f), stat.Size())
 
 	req, err := http.NewRequest("PUT", uploadUrl, reader)
 	if err != nil {
