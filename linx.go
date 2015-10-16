@@ -88,14 +88,13 @@ func linx(config *Config, filepath string, ttl int, deleteKey string) {
 	}
 
 	filename := path.Base(filepath)
-	uploadUrl := fmt.Sprintf("%supload/%s", config.Server, filename)
 	stat, err := f.Stat()
 	if err != nil {
 		log.Fatalf("Failed to stat file: %v\n", err)
 	}
 	reader := progress.NewProgressReader(filename, bufio.NewReader(f), stat.Size())
 
-	req, err := http.NewRequest("PUT", uploadUrl, reader)
+	req, err := http.NewRequest("PUT", config.Server + "/upload", reader)
 	if err != nil {
 		log.Fatalf("Failed to create request: %v\n", err)
 	}
