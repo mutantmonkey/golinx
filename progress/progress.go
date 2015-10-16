@@ -8,8 +8,11 @@ import (
 	"time"
 )
 
-const termWidth = 80
-const updateInterval = time.Second / 10
+const (
+	labelLength = 40
+	termWidth = 80
+	updateInterval = time.Second / 10
+)
 
 var clearBuf = bytes.Repeat([]byte{' '}, termWidth)
 
@@ -57,7 +60,8 @@ func (pr *ProgressReader) clearProgress() {
 
 func (pr *ProgressReader) printProgress(n int64) {
 	percent := float64(n*100) / float64(pr.total)
-	fmt.Fprintf(pr.output, "\r%-40v %7.2f%%", pr.label, percent)
+	formatStr := fmt.Sprintf("\r%%-%dv %%7.2f%%%%", labelLength)
+	fmt.Fprintf(pr.output, formatStr, pr.label[:labelLength], percent)
 }
 
 func (pr *ProgressReader) update() {
