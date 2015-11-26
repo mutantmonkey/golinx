@@ -94,7 +94,7 @@ func linx(config *Config, filepath string, ttl int, deleteKey string) {
 	}
 	reader := progress.NewProgressReader(filename, bufio.NewReader(f), stat.Size())
 
-	req, err := http.NewRequest("PUT", config.Server+"upload", reader)
+	req, err := http.NewRequest("PUT", config.Server+"upload/"+filename, reader)
 	if err != nil {
 		log.Fatalf("Failed to create request: %v\n", err)
 	}
