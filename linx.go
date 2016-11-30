@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 
@@ -79,24 +79,14 @@ func prepareProxyClient(proxyUrl string) *http.Client {
 	return &http.Client{Transport: transport}
 }
 
-func linx(config *Config, filepath string, ttl int, deleteKey string) {
+func linx(config *Config, filename string, size int64, f io.Reader, ttl int, deleteKey string) (data LinxJSON, err error) {
 	client := prepareProxyClient(config.Proxy)
-
-	f, err := os.Open(filepath)
-	if err != nil {
-		log.Fatalf("Failed to open file: %v\n", err)
-	}
-
-	filename := path.Base(filepath)
-	stat, err := f.Stat()
-	if err != nil {
-		log.Fatalf("Failed to stat file: %v\n", err)
-	}
-	reader := progress.NewProgressReader(filename, bufio.NewReader(f), stat.Size())
+	reader := progress.NewProgressReader(filename, bufio.NewReader(f), size)
 
 	req, err := http.NewRequest("PUT", config.Server+"upload/"+filename, reader)
 	if err != nil {
-		log.Fatalf("Failed to create request: %v\n", err)
+		err = fmt.Errorf("Failed to create request: %v", err)
+		return
 	}
 
 	req.Header.Add("Accept", "application/json")
@@ -110,39 +100,50 @@ func linx(config *Config, filepath string, ttl int, deleteKey string) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Failed to issue request: %v\n", err)
+		err = fmt.Errorf("Failed to issue request: %v", err)
+		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		log.Fatalf("Upload failed: %s\n", resp.Status)
+		err = fmt.Errorf("Upload failed: %s", resp.Status)
+		return
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("Failed to read the body: %v\n", err)
+		err = fmt.Errorf("Failed to read the body: %v", err)
+		return
 	}
 
-	var data LinxJSON
 	err = json.Unmarshal(body, &data)
+	if err != nil {
+		err = fmt.Errorf("Unable to unmarshal JSON: %v", err)
+		return
+	}
 
 	if deleteKey != "" || config.UploadLog != "" {
 		fmt.Printf("%s\n", data.Url)
 
-		f, err := os.OpenFile(config.UploadLog, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0600)
+		var ulog *os.File
+		ulog, err = os.OpenFile(config.UploadLog, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0600)
 		if err != nil {
-			log.Fatalf("Failed to open upload log \"%s\" to write delete key \"%s\": %v", config.UploadLog, data.Delete_Key, err)
+			err = fmt.Errorf("Failed to open upload log \"%s\" to write delete key \"%s\": %v", config.UploadLog, data.Delete_Key, err)
+			return
 		}
-		defer f.Close()
+		defer ulog.Close()
 
-		_, err = f.WriteString(fmt.Sprintf("%s:%s\n", data.Filename, data.Delete_Key))
+		_, err = ulog.WriteString(fmt.Sprintf("%s:%s\n", data.Filename, data.Delete_Key))
 		if err != nil {
-			log.Fatalf("Failed to write delete key \"%s\" to log: %v", data.Delete_Key, err)
+			err = fmt.Errorf("Failed to write delete key \"%s\" to log: %v", data.Delete_Key, err)
+			return
 		}
-		f.Sync()
+		ulog.Sync()
 	} else {
 		fmt.Printf("%-40s  delete key: %s\n", data.Url, data.Delete_Key)
 	}
+
+	return
 }
 
 func unlinx(config *Config, url string, deleteKey string) bool {
@@ -179,13 +180,14 @@ func unlinx(config *Config, url string, deleteKey string) bool {
 func main() {
 	config := &Config{}
 	var flags struct {
-		deleteKey  string
-		deleteMode bool
-		ttl        int
-		configPath string
-		server     string
-		proxy      string
-		uploadLog  string
+		deleteKey      string
+		deleteMode     bool
+		ttl            int
+		configPath     string
+		server         string
+		proxy          string
+		uploadLog      string
+		makeCollection bool
 	}
 
 	defaultConfigPath, err := xdg.ConfigFile("golinx/config.yml")
@@ -208,6 +210,8 @@ func main() {
 		"URL of proxy used to access the server")
 	flag.StringVar(&flags.uploadLog, "uploadlog", "",
 		"Path to the upload log file")
+	flag.BoolVar(&flags.makeCollection, "collection", false,
+		"Create a collection when uploading multiple files")
 	flag.Parse()
 
 	if flags.configPath != "" {
@@ -259,8 +263,36 @@ func main() {
 			}
 		}
 	} else {
+		var uploads []string
+
 		for _, filepath := range flag.Args() {
-			linx(config, filepath, flags.ttl, flags.deleteKey)
+			f, err := os.Open(filepath)
+			if err != nil {
+				log.Fatalf("Failed to open file: %v\n", err)
+			}
+			defer f.Close()
+
+			stat, err := f.Stat()
+			if err != nil {
+				log.Fatalf("Failed to stat file: %v\n", err)
+			}
+
+			result, err := linx(config, stat.Name(), stat.Size(), f, flags.ttl, flags.deleteKey)
+			if err != nil {
+				log.Fatalf("Unable to upload file: %v", err)
+			}
+
+			if flags.makeCollection == true {
+				uploads = append(uploads, result.Url)
+			}
+		}
+
+		if flags.makeCollection == true {
+			reader := strings.NewReader(strings.Join(uploads, "\n"))
+			_, err = linx(config, "linx.collection", int64(reader.Len()), reader, flags.ttl, flags.deleteKey)
+			if err != nil {
+				log.Fatalf("Unable to upload collection: %v", err)
+			}
 		}
 	}
 }
