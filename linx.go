@@ -16,8 +16,8 @@ import (
 
 	"github.com/adrg/xdg"
 	"golang.org/x/net/proxy"
+	"gopkg.in/cheggaaa/pb.v1"
 	"gopkg.in/yaml.v2"
-	"mutantmonkey.in/code/golinx/progress"
 )
 
 type Config struct {
@@ -82,7 +82,13 @@ func prepareProxyClient(proxyUrl string) *http.Client {
 
 func linx(config *Config, filename string, size int64, f io.Reader, ttl int, deleteKey string) (data LinxJSON, err error) {
 	client := prepareProxyClient(config.Proxy)
-	reader := progress.NewProgressReader(filename, bufio.NewReader(f), size)
+
+	bar := pb.New(int(size))
+	bar.SetUnits(pb.U_BYTES)
+	bar.Prefix(fmt.Sprintf("%.20s ", filename))
+	bar.Start()
+
+	reader := bar.NewProxyReader(bufio.NewReader(f))
 
 	req, err := http.NewRequest("PUT", config.Server+"upload/"+filename, reader)
 	if err != nil {
@@ -108,6 +114,8 @@ func linx(config *Config, filename string, size int64, f io.Reader, ttl int, del
 		return
 	}
 	defer resp.Body.Close()
+
+	bar.Finish()
 
 	if resp.StatusCode != 200 {
 		err = fmt.Errorf("Upload failed: %s", resp.Status)
