@@ -16,7 +16,7 @@ uploadlog: /home/mutantmonkey/.local/share/golinx/linx.log
 ```
 
 ## License
-Copyright (c) 2015 mutantmonkey
+Copyright (c) 2015-2018 mutantmonkey
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
