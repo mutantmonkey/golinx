@@ -22,6 +22,7 @@ import (
 
 type Config struct {
 	Server    string
+	ApiKey    string
 	Proxy     string
 	UploadLog string
 }
@@ -94,6 +95,9 @@ func linx(config *Config, filename string, size int64, f io.Reader, ttl int, del
 	req.Header.Add("Linx-Expiry", strconv.Itoa(ttl))
 	req.Header.Add("Linx-Randomize", "yes")
 
+	if config.ApiKey != "" {
+		req.Header.Set("Linx-Api-Key", config.ApiKey)
+	}
 	if deleteKey != "" {
 		req.Header.Add("Linx-Delete-Key", deleteKey)
 	}
@@ -162,6 +166,10 @@ func unlinx(config *Config, url string, deleteKey string) bool {
 	req.Header.Add("User-Agent", "golinx")
 	req.Header.Add("Linx-Delete-Key", deleteKey)
 
+	if config.ApiKey != "" {
+		req.Header.Set("Linx-Api-Key", config.ApiKey)
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Fatalf("Failed to issue request: %v\n", err)
@@ -180,6 +188,7 @@ func unlinx(config *Config, url string, deleteKey string) bool {
 func main() {
 	config := &Config{}
 	var flags struct {
+		apiKey         string
 		deleteKey      string
 		deleteMode     bool
 		ttl            int
@@ -196,6 +205,8 @@ func main() {
 		defaultConfigPath = ""
 	}
 
+	flag.StringVar(&flags.apiKey, "apikey", "",
+		"The API key to use to access the Linx instance (optional)")
 	flag.StringVar(&flags.deleteKey, "deletekey", "",
 		"The delete key to use for uploading or deleting a file")
 	flag.BoolVar(&flags.deleteMode, "d", false,
@@ -225,6 +236,10 @@ func main() {
 
 	if flags.server != "" {
 		config.Server = flags.server
+	}
+
+	if flags.apiKey != "" {
+		config.ApiKey = flags.apiKey
 	}
 
 	if flags.proxy != "" {
