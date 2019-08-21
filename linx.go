@@ -25,6 +25,7 @@ type Config struct {
 	ApiKey    string
 	Proxy     string
 	UploadLog string
+	Headers   []string
 }
 
 type LinxJSON struct {
@@ -101,6 +102,11 @@ func linx(config *Config, filename string, size int64, f io.Reader, ttl int, del
 	req.Header.Add("Linx-Expiry", strconv.Itoa(ttl))
 	req.Header.Add("Linx-Randomize", "yes")
 
+	for _, header := range config.Headers {
+		h := strings.SplitN(header, ": ", 2)
+		req.Header.Add(h[0], h[1])
+	}
+
 	if config.ApiKey != "" {
 		req.Header.Set("Linx-Api-Key", config.ApiKey)
 	}
@@ -174,6 +180,11 @@ func unlinx(config *Config, url string, deleteKey string) bool {
 	req.Header.Add("User-Agent", "golinx")
 	req.Header.Add("Linx-Delete-Key", deleteKey)
 
+	for _, header := range config.Headers {
+		h := strings.SplitN(header, ": ", 2)
+		req.Header.Add(h[0], h[1])
+	}
+
 	if config.ApiKey != "" {
 		req.Header.Set("Linx-Api-Key", config.ApiKey)
 	}
@@ -193,6 +204,18 @@ func unlinx(config *Config, url string, deleteKey string) bool {
 	}
 }
 
+// Type used for passing multiple parameters using the same flag
+type multiStringFlag []string
+
+func (m *multiStringFlag) String() string {
+	return "[" + strings.Join(*m, " ") + "]"
+}
+
+func (m *multiStringFlag) Set(value string) error {
+	*m = append(*m, value)
+	return nil
+}
+
 func main() {
 	config := &Config{}
 	var flags struct {
@@ -205,6 +228,7 @@ func main() {
 		proxy          string
 		uploadLog      string
 		makeCollection bool
+		headers        multiStringFlag
 	}
 
 	defaultConfigPath, err := xdg.ConfigFile("golinx/config.yml")
@@ -231,6 +255,8 @@ func main() {
 		"Path to the upload log file")
 	flag.BoolVar(&flags.makeCollection, "collection", false,
 		"Create a collection when uploading multiple files")
+	flag.Var(&flags.headers, "H",
+		"Headers to add to the request; multiple -H flags are accepted")
 	flag.Parse()
 
 	if flags.configPath != "" {
@@ -256,6 +282,10 @@ func main() {
 
 	if flags.uploadLog != "" {
 		config.UploadLog = flags.uploadLog
+	}
+
+	if len(flags.headers) > 0 {
+		config.Headers = append(config.Headers, flags.headers...)
 	}
 
 	if config.Server == "" {
