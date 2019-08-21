@@ -81,6 +81,15 @@ func prepareProxyClient(proxyUrl string) *http.Client {
 	return &http.Client{Transport: transport}
 }
 
+func addRequestHeaders(headers []string, req *http.Request) error {
+	for _, header := range headers {
+		h := strings.SplitN(header, ": ", 2)
+		req.Header.Add(h[0], h[1])
+	}
+
+	return nil
+}
+
 func linx(config *Config, filename string, size int64, f io.Reader, ttl int, deleteKey string) (data LinxJSON, err error) {
 	client := prepareProxyClient(config.Proxy)
 
@@ -102,10 +111,7 @@ func linx(config *Config, filename string, size int64, f io.Reader, ttl int, del
 	req.Header.Add("Linx-Expiry", strconv.Itoa(ttl))
 	req.Header.Add("Linx-Randomize", "yes")
 
-	for _, header := range config.Headers {
-		h := strings.SplitN(header, ": ", 2)
-		req.Header.Add(h[0], h[1])
-	}
+	addRequestHeaders(config.Headers, req)
 
 	if config.ApiKey != "" {
 		req.Header.Set("Linx-Api-Key", config.ApiKey)
@@ -180,10 +186,7 @@ func unlinx(config *Config, url string, deleteKey string) bool {
 	req.Header.Add("User-Agent", "golinx")
 	req.Header.Add("Linx-Delete-Key", deleteKey)
 
-	for _, header := range config.Headers {
-		h := strings.SplitN(header, ": ", 2)
-		req.Header.Add(h[0], h[1])
-	}
+	addRequestHeaders(config.Headers, req)
 
 	if config.ApiKey != "" {
 		req.Header.Set("Linx-Api-Key", config.ApiKey)
@@ -219,7 +222,6 @@ func (m *multiStringFlag) Set(value string) error {
 func main() {
 	config := &Config{}
 	var flags struct {
-		apiKey         string
 		deleteKey      string
 		deleteMode     bool
 		ttl            int
@@ -237,8 +239,6 @@ func main() {
 		defaultConfigPath = ""
 	}
 
-	flag.StringVar(&flags.apiKey, "apikey", "",
-		"The API key to use to access the Linx instance (optional)")
 	flag.StringVar(&flags.deleteKey, "deletekey", "",
 		"The delete key to use for uploading or deleting a file")
 	flag.BoolVar(&flags.deleteMode, "d", false,
@@ -256,7 +256,7 @@ func main() {
 	flag.BoolVar(&flags.makeCollection, "collection", false,
 		"Create a collection when uploading multiple files")
 	flag.Var(&flags.headers, "H",
-		"Headers to add to the request; multiple -H flags are accepted")
+		"Additional headers to add to the request; multiple -H flags are accepted (optional)")
 	flag.Parse()
 
 	if flags.configPath != "" {
@@ -270,10 +270,6 @@ func main() {
 
 	if flags.server != "" {
 		config.Server = flags.server
-	}
-
-	if flags.apiKey != "" {
-		config.ApiKey = flags.apiKey
 	}
 
 	if flags.proxy != "" {
