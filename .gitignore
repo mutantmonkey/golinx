@@ -4,3 +4,4 @@ golinx
 *.swo
 *.swp
 Thumbs.db
+/dist
