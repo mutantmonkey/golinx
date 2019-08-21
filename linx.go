@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	"github.com/adrg/xdg"
-	"golang.org/x/net/proxy"
 	"gopkg.in/cheggaaa/pb.v1"
 	"gopkg.in/yaml.v2"
 )
@@ -36,57 +35,15 @@ type LinxJSON struct {
 	Size       string
 }
 
-func getDeleteKeys(config *Config) (keys map[string]string) {
-	keys = make(map[string]string)
+// Type used for passing multiple parameters using the same flag
+type multiStringFlag []string
 
-	f, err := os.Open(config.UploadLog)
-	if err != nil {
-		log.Print("Could not open upload log: ", err)
-		return
-	}
-
-	scanner := bufio.NewScanner(bufio.NewReader(f))
-	for scanner.Scan() {
-		lineSlice := strings.SplitN(scanner.Text(), ":", 2)
-		if len(lineSlice) == 2 {
-			keys[lineSlice[0]] = lineSlice[1]
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		log.Fatal("Scanner error: ", err)
-	}
-
-	return
+func (m *multiStringFlag) String() string {
+	return "[" + strings.Join(*m, " ") + "]"
 }
 
-func prepareProxyClient(proxyUrl string) *http.Client {
-	var dialer proxy.Dialer
-
-	dialer = proxy.Direct
-
-	if proxyUrl != "" {
-		u, err := url.Parse(proxyUrl)
-		if err != nil {
-			log.Fatalf("Failed to parse proxy URL: %v\n", err)
-		}
-
-		dialer, err = proxy.FromURL(u, dialer)
-		if err != nil {
-			log.Fatalf("Failed to obtain proxy dialer: %v\n", err)
-		}
-	}
-
-	transport := &http.Transport{Dial: dialer.Dial}
-	return &http.Client{Transport: transport}
-}
-
-func addRequestHeaders(headers []string, req *http.Request) error {
-	for _, header := range headers {
-		h := strings.SplitN(header, ": ", 2)
-		req.Header.Add(h[0], h[1])
-	}
-
+func (m *multiStringFlag) Set(value string) error {
+	*m = append(*m, value)
 	return nil
 }
 
@@ -205,18 +162,6 @@ func unlinx(config *Config, url string, deleteKey string) bool {
 		fmt.Printf("%s: deletion failed: %s\n", url, resp.Status)
 		return false
 	}
-}
-
-// Type used for passing multiple parameters using the same flag
-type multiStringFlag []string
-
-func (m *multiStringFlag) String() string {
-	return "[" + strings.Join(*m, " ") + "]"
-}
-
-func (m *multiStringFlag) Set(value string) error {
-	*m = append(*m, value)
-	return nil
 }
 
 func main() {
